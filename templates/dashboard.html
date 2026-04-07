@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - TourSafe</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="navbar-left">
+            <span class="navbar-logo">🛡️</span>
+            <span class="navbar-brand">TourSafe</span>
+        </div>
+        <div class="navbar-center">
+            <span class="navbar-label">Tourist Dashboard</span>
+        </div>
+        <div class="navbar-right">
+            <span class="navbar-user">👤 {{ username }}</span>
+            <a href="{{ url_for('logout') }}" class="navbar-logout">Logout</a>
+        </div>
+    </nav>
+
+    <!-- Map Container -->
+    <div id="map" class="map-container"></div>
+
+    <!-- Zone Alert Banner -->
+    <div id="zone-alert" class="alert-banner zone-alert hidden">
+        <span class="alert-icon">🔴</span>
+        <span class="alert-text"></span>
+    </div>
+
+    <!-- Anomaly Alert Banner -->
+    <div id="anomaly-alert" class="alert-banner anomaly-alert hidden">
+        <span class="alert-icon">🤖</span>
+        <span class="alert-text">AI Anomaly Detected — Unusual movement!</span>
+    </div>
+
+    <!-- Info Card -->
+    <div class="info-card">
+        <div class="info-item">
+            <span class="info-icon">📍</span>
+            <div class="info-text">
+                <div class="info-label">Current Location</div>
+                <div id="info-coords">Loading...</div>
+            </div>
+        </div>
+        <div class="info-item">
+            <span class="info-icon">🕐</span>
+            <div class="info-text">
+                <div class="info-label">Last Updated</div>
+                <div id="info-time">--:--:--</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="{{ url_for('static', filename='map.js') }}"></script>
+</body>
+</html>
