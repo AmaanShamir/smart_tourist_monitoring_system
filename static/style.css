@@ -1,0 +1,345 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+}
+
+/* ═════════════════════════════════════════ */
+/* NAVBAR */
+/* ═════════════════════════════════════════ */
+
+.navbar {
+    height: 56px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    box-shadow: 0 2px 12px rgba(102, 126, 234, 0.4);
+    flex-shrink: 0;
+}
+
+.navbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.navbar-logo {
+    font-size: 24px;
+}
+
+.navbar-brand {
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: 0.5px;
+}
+
+.navbar-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+}
+
+.navbar-label {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    backdrop-filter: blur(4px);
+}
+
+.navbar-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.navbar-user {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.navbar-logout {
+    background: #ff4757;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+    text-decoration: none;
+    transition: background 0.3s ease;
+}
+
+.navbar-logout:hover {
+    background: #ff3838;
+}
+
+/* ═════════════════════════════════════════ */
+/* MAP CONTAINER */
+/* ═════════════════════════════════════════ */
+
+.map-container {
+    width: 100%;
+    height: calc(100vh - 56px);
+    position: relative;
+}
+
+#map {
+    width: 100%;
+    height: 100%;
+}
+
+/* ═════════════════════════════════════════ */
+/* USER MARKER */
+/* ═════════════════════════════════════════ */
+
+.user-marker-pulse {
+    position: relative;
+    display: inline-block;
+}
+
+.user-marker-pulse::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 30px;
+    height: 30px;
+    background: rgba(102, 126, 234, 0.4);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.user-marker-inner {
+    width: 30px;
+    height: 30px;
+    background: #667eea;
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.6);
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* ═════════════════════════════════════════ */
+/* ALERT BANNERS */
+/* ═════════════════════════════════════════ */
+
+.alert-banner {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 20px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 1000;
+    animation: slideDown 0.4s ease-out;
+    max-width: 600px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.alert-banner.hidden {
+    display: none;
+}
+
+.alert-banner.fade-out {
+    animation: fadeOut 0.5s ease-out forwards;
+}
+
+.alert-icon {
+    font-size: 18px;
+}
+
+.alert-text {
+    font-size: 14px;
+}
+
+/* Zone alert variations */
+.alert-banner.zone-red {
+    background: #ff4757;
+}
+
+.alert-banner.zone-yellow {
+    background: #ffa502;
+    color: #333;
+}
+
+.alert-banner.zone-green {
+    background: #2ed573;
+    color: #333;
+}
+
+/* Anomaly alert */
+.alert-banner.anomaly-alert {
+    background: #9c27b0;
+}
+
+.alert-banner.sos-alert {
+    background: #ff4757;
+    top: 124px;
+}
+
+/* ═════════════════════════════════════════ */
+/* INFO CARD */
+/* ═════════════════════════════════════════ */
+
+.info-card {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 999;
+    min-width: 280px;
+}
+
+/* SOS BUTTON */
+.sos-btn {
+    position: fixed;
+    right: 22px;
+    bottom: 22px;
+    width: 82px;
+    height: 82px;
+    border-radius: 50%;
+    border: none;
+    background: radial-gradient(circle at 30% 30%, #ff7f8a, #ff4757);
+    color: white;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    z-index: 1100;
+    box-shadow: 0 10px 22px rgba(255, 71, 87, 0.45);
+    animation: sosPulse 1.7s infinite;
+}
+
+.sos-btn:active {
+    transform: scale(0.97);
+}
+
+.info-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.info-item:last-child {
+    margin-bottom: 0;
+}
+
+.info-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.info-text {
+    flex: 1;
+}
+
+.info-label {
+    font-size: 12px;
+    color: #999;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+
+#info-coords,
+#info-time {
+    font-size: 14px;
+    color: #333;
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+}
+
+/* ═════════════════════════════════════════ */
+/* ANIMATIONS */
+/* ═════════════════════════════════════════ */
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 0.4;
+    }
+    50% {
+        transform: scale(1.2);
+        opacity: 0.2;
+    }
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+@keyframes sosPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.55), 0 10px 22px rgba(255, 71, 87, 0.45);
+    }
+    70% {
+        box-shadow: 0 0 0 18px rgba(255, 71, 87, 0), 0 10px 22px rgba(255, 71, 87, 0.45);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 71, 87, 0), 0 10px 22px rgba(255, 71, 87, 0.45);
+    }
+}
+
+/* ═════════════════════════════════════════ */
+/* LEAFLET OVERRIDES */
+/* ═════════════════════════════════════════ */
+
+.leaflet-container {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.leaflet-popup-content-wrapper {
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.leaflet-popup-content {
+    font-size: 13px;
+    color: #333;
+}
+
+.leaflet-popup-content strong {
+    color: #667eea;
+}
