@@ -2,6 +2,7 @@ import sqlite3
 import os
 import bcrypt
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask_socketio import SocketIO, join_room
 from functools import wraps
 from datetime import datetime
 from haversine import haversine
@@ -9,6 +10,7 @@ from ai_module import detect_anomaly
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-in-production'
+socketio = SocketIO(app, cors_allowed_origins='*')
 
 DATABASE = 'database.db'
 
@@ -55,7 +57,34 @@ def init_db():
             lat REAL NOT NULL,
             lng REAL NOT NULL,
             radius REAL NOT NULL,
-            type TEXT NOT NULL
+            type TEXT NOT NULL,
+            created_by INTEGER,
+            FOREIGN KEY(created_by) REFERENCES users(id)
+        )
+    ''')
+
+    # Add created_by column for backward compatibility on existing DBs
+    cursor.execute("PRAGMA table_info(zones)")
+    zone_columns = [col[1] for col in cursor.fetchall()]
+    if 'created_by' not in zone_columns:
+        cursor.execute('ALTER TABLE zones ADD COLUMN created_by INTEGER')
+
+    # Create SOS alerts table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sos_alerts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            user_name TEXT NOT NULL,
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
+            zone_id INTEGER,
+            zone_name TEXT,
+            zone_type TEXT,
+            target_admin_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id),
+            FOREIGN KEY(zone_id) REFERENCES zones(id),
+            FOREIGN KEY(target_admin_id) REFERENCES users(id)
         )
     ''')
     
@@ -120,6 +149,32 @@ def admin_required(f):
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
+
+
+def get_priority(zone_type):
+    """Priority helper used for zone-based SOS routing."""
+    return {'red': 3, 'yellow': 2, 'green': 1}.get(zone_type, 0)
+
+
+def find_best_zone_for_location(conn, lat, lng):
+    """Find the highest-priority zone that contains the given location."""
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, name, type, lat, lng, radius, created_by FROM zones')
+    zones = cursor.fetchall()
+
+    best_zone = None
+    highest_priority = -1
+
+    for zone in zones:
+        zone_radius_km = zone['radius'] / 1000.0
+        distance_km = haversine(lat, lng, zone['lat'], zone['lng'])
+        if distance_km <= zone_radius_km:
+            current_priority = get_priority(zone['type'])
+            if current_priority > highest_priority:
+                highest_priority = current_priority
+                best_zone = zone
+
+    return best_zone
 
 @app.route('/')
 def index():
@@ -427,7 +482,7 @@ def api_zones():
     """Get all zones"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT id, name, lat, lng, radius, type FROM zones')
+    cursor.execute('SELECT id, name, lat, lng, radius, type, created_by FROM zones')
     zones_data = cursor.fetchall()
     conn.close()
     
@@ -438,7 +493,8 @@ def api_zones():
             'lat': zone['lat'],
             'lng': zone['lng'],
             'radius': zone['radius'],
-            'type': zone['type']
+            'type': zone['type'],
+            'created_by': zone['created_by']
         }
         for zone in zones_data
     ]
@@ -552,10 +608,11 @@ def api_admin_zones_create():
         
         conn = get_db()
         cursor = conn.cursor()
+        created_by = session.get('user_id')
         cursor.execute('''
-            INSERT INTO zones (name, lat, lng, radius, type)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (name, lat, lng, radius, zone_type))
+            INSERT INTO zones (name, lat, lng, radius, type, created_by)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (name, lat, lng, radius, zone_type, created_by))
         conn.commit()
         
         zone_id = cursor.lastrowid
@@ -567,7 +624,8 @@ def api_admin_zones_create():
             'lat': lat,
             'lng': lng,
             'radius': radius,
-            'type': zone_type
+            'type': zone_type,
+            'created_by': created_by
         }), 201
     
     except Exception as error:
@@ -597,11 +655,12 @@ def api_admin_zones_update(zone_id):
         
         conn = get_db()
         cursor = conn.cursor()
+        updated_by = session.get('user_id')
         cursor.execute('''
             UPDATE zones
-            SET name = ?, lat = ?, lng = ?, radius = ?, type = ?
+            SET name = ?, lat = ?, lng = ?, radius = ?, type = ?, created_by = ?
             WHERE id = ?
-        ''', (name, lat, lng, radius, zone_type, zone_id))
+        ''', (name, lat, lng, radius, zone_type, updated_by, zone_id))
         conn.commit()
         conn.close()
         
@@ -611,7 +670,8 @@ def api_admin_zones_update(zone_id):
             'lat': lat,
             'lng': lng,
             'radius': radius,
-            'type': zone_type
+            'type': zone_type,
+            'created_by': updated_by
         }), 200
     
     except Exception as error:
@@ -699,7 +759,157 @@ def api_admin_ai_status():
     except Exception as error:
         return jsonify({'error': f'Server error: {str(error)}'}), 500
 
+
+@app.route('/api/admin/sos_alerts', methods=['GET'])
+@admin_required
+def api_admin_sos_alerts():
+    """Get SOS alerts for the currently logged-in admin."""
+    try:
+        admin_id = session.get('user_id')
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, user_id, user_name, latitude, longitude, zone_id, zone_name, zone_type, target_admin_id, created_at
+            FROM sos_alerts
+            WHERE target_admin_id = ?
+            ORDER BY created_at DESC
+            LIMIT 100
+        ''', (admin_id,))
+        rows = cursor.fetchall()
+        conn.close()
+
+        return jsonify([
+            {
+                'id': row['id'],
+                'user_id': row['user_id'],
+                'user_name': row['user_name'],
+                'lat': row['latitude'],
+                'lng': row['longitude'],
+                'zone_id': row['zone_id'],
+                'zone_name': row['zone_name'],
+                'zone_type': row['zone_type'],
+                'target_admin_id': row['target_admin_id'],
+                'created_at': row['created_at']
+            }
+            for row in rows
+        ]), 200
+    except Exception as error:
+        return jsonify({'error': f'Server error: {str(error)}'}), 500
+
+
+@socketio.on('connect')
+def handle_connect():
+    """Join per-user/admin rooms on socket connect."""
+    user_id = session.get('user_id')
+    role = session.get('role')
+
+    if not user_id:
+        return False
+
+    join_room(f'user_{user_id}')
+    if role == 'admin':
+        join_room(f'admin_{user_id}')
+
+
+@socketio.on('sos_alert')
+def handle_sos_alert(data):
+    """Receive SOS from user and deliver to the responsible admin room."""
+    user_id = session.get('user_id')
+    role = session.get('role')
+
+    if not user_id or role != 'user':
+        return {'success': False, 'error': 'Unauthorized SOS sender'}
+
+    lat = data.get('lat') if isinstance(data, dict) else None
+    lng = data.get('lng') if isinstance(data, dict) else None
+
+    if lat is None or lng is None:
+        return {'success': False, 'error': 'Missing latitude or longitude'}
+
+    try:
+        lat = float(lat)
+        lng = float(lng)
+    except (TypeError, ValueError):
+        return {'success': False, 'error': 'Invalid location payload'}
+
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT name FROM users WHERE id = ?', (user_id,))
+        user_row = cursor.fetchone()
+        if not user_row:
+            conn.close()
+            return {'success': False, 'error': 'User not found'}
+
+        best_zone = find_best_zone_for_location(conn, lat, lng)
+
+        target_admin_id = None
+        zone_id = None
+        zone_name = None
+        zone_type = None
+
+        if best_zone and best_zone['created_by']:
+            cursor.execute('SELECT id FROM users WHERE id = ? AND role = ?', (best_zone['created_by'], 'admin'))
+            target_admin = cursor.fetchone()
+            if target_admin:
+                target_admin_id = target_admin['id']
+                zone_id = best_zone['id']
+                zone_name = best_zone['name']
+                zone_type = best_zone['type']
+
+        # Fallback to first available admin if no zone-owner admin was found.
+        if not target_admin_id:
+            cursor.execute('SELECT id FROM users WHERE role = ? ORDER BY id ASC LIMIT 1', ('admin',))
+            fallback_admin = cursor.fetchone()
+            if not fallback_admin:
+                conn.close()
+                return {'success': False, 'error': 'No admin available'}
+            target_admin_id = fallback_admin['id']
+            if best_zone:
+                zone_id = best_zone['id']
+                zone_name = best_zone['name']
+                zone_type = best_zone['type']
+
+        created_at = datetime.now().isoformat()
+        cursor.execute('''
+            INSERT INTO sos_alerts (user_id, user_name, latitude, longitude, zone_id, zone_name, zone_type, target_admin_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            user_id,
+            user_row['name'],
+            lat,
+            lng,
+            zone_id,
+            zone_name,
+            zone_type,
+            target_admin_id,
+            created_at
+        ))
+        alert_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        alert_payload = {
+            'id': alert_id,
+            'user_id': user_id,
+            'user_name': user_row['name'],
+            'lat': lat,
+            'lng': lng,
+            'zone_id': zone_id,
+            'zone_name': zone_name,
+            'zone_type': zone_type,
+            'target_admin_id': target_admin_id,
+            'created_at': created_at
+        }
+
+        socketio.emit('sos_alert', alert_payload, room=f'admin_{target_admin_id}')
+        return {'success': True, 'alert': alert_payload}
+
+    except Exception as error:
+        return {'success': False, 'error': str(error)}
+
 if __name__ == '__main__':
     # Initialize database on startup
     init_db()
-    app.run(debug=True)
+    socketio.run(app, debug=True)

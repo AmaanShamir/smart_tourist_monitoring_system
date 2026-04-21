@@ -1025,9 +1025,82 @@
         .user-empty-state.hidden {
             display: none;
         }
+
+        /* SOS ALERTS */
+        .sos-section-header {
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 15px;
+            margin: 20px 0 10px;
+        }
+
+        .sos-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .sos-item {
+            background: rgba(255, 71, 87, 0.12);
+            border: 1px solid rgba(255, 71, 87, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .sos-item-title {
+            color: #ff7d87;
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .sos-item-meta {
+            color: #c8d0e6;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .sos-empty {
+            color: #8892b0;
+            font-size: 12px;
+            padding: 8px 0;
+        }
+
+        .sos-popup-container {
+            position: fixed;
+            top: 70px;
+            right: 16px;
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .sos-popup {
+            min-width: 280px;
+            max-width: 360px;
+            background: #ff4757;
+            color: white;
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.25);
+            animation: sosSlideIn 0.35s ease;
+        }
+
+        @keyframes sosSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
     </style>
 </head>
-<body>
+<body data-user-id="{{ user_id }}">
     <!-- Navbar -->
     <nav class="navbar">
         <div class="navbar-left">
@@ -1068,6 +1141,12 @@
 
             <!-- User List -->
             <div id="user-list"></div>
+
+            <!-- SOS Alerts -->
+            <div class="sos-section-header">🚨 SOS Alerts</div>
+            <div id="sos-alerts-list" class="sos-list">
+                <div class="sos-empty">No SOS alerts yet.</div>
+            </div>
 
             <!-- Zone Management Section -->
             <div class="zone-section-header" onclick="toggleZoneForm()">
@@ -1205,12 +1284,11 @@
         </div>
     </div>
 
+    <div id="sos-popup-container" class="sos-popup-container"></div>
+
     <!-- Scripts -->
-    <script>
-        // Set current user ID for JavaScript
-        document.body.dataset.userId = {{ user_id }};
-    </script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
     <script src="{{ url_for('static', filename='admin.js') }}"></script>
 </body>
 </html>

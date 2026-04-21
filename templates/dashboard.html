@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
+<body data-username="{{ username }}">
     <!-- Navbar -->
     <nav class="navbar">
         <div class="navbar-left">
@@ -38,6 +38,12 @@
         <span class="alert-text">AI Anomaly Detected — Unusual movement!</span>
     </div>
 
+    <!-- SOS Alert Banner -->
+    <div id="sos-alert-status" class="alert-banner sos-alert hidden">
+        <span class="alert-icon">🚨</span>
+        <span class="alert-text">SOS alert sent to area admin.</span>
+    </div>
+
     <!-- Info Card -->
     <div class="info-card">
         <div class="info-item">
@@ -56,8 +62,12 @@
         </div>
     </div>
 
+    <!-- SOS Floating Button -->
+    <button id="sos-btn" class="sos-btn" type="button">SOS</button>
+
     <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
     <script src="{{ url_for('static', filename='map.js') }}"></script>
 </body>
 </html>

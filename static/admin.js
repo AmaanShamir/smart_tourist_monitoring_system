@@ -1,5 +1,8 @@
 let map;
 let userMarkers = {};
+let socket;
+let zoneMapLayers = {};
+let sosAlerts = [];
 
 // Color palette for deterministic avatar colors
 const AVATAR_COLORS = ['#667eea', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#fee140', '#a18cd1', '#fda085'];
@@ -22,6 +25,8 @@ document.addEventListener('DOMContentLoaded', function() {
         redrawZoneCircles();
         loadAIStatus();
         loadAllUsers();
+        loadSOSAlerts();
+        initSocket();
 
         // Auto-refresh locations every 10 seconds
         setInterval(loadLocations, 10000);
@@ -103,6 +108,114 @@ function loadLocations() {
     } catch (error) {
         console.error('Error in loadLocations:', error);
     }
+}
+
+function initSocket() {
+    try {
+        socket = io();
+
+        socket.on('connect_error', (error) => {
+            console.error('Socket connection error:', error.message);
+        });
+
+        socket.on('sos_alert', (alertPayload) => {
+            prependSOSAlert(alertPayload);
+            showSOSPopup(alertPayload);
+            markZoneEmergency(alertPayload.zone_id);
+        });
+    } catch (error) {
+        console.error('Error initializing socket:', error);
+    }
+}
+
+function loadSOSAlerts() {
+    try {
+        fetch('/api/admin/sos_alerts')
+            .then(response => {
+                if (!response.ok) throw new Error('API error: ' + response.status);
+                return response.json();
+            })
+            .then(alerts => {
+                sosAlerts = Array.isArray(alerts) ? alerts : [];
+                renderSOSAlerts();
+            })
+            .catch(error => console.error('Error loading SOS alerts:', error));
+    } catch (error) {
+        console.error('Error in loadSOSAlerts:', error);
+    }
+}
+
+function prependSOSAlert(alertPayload) {
+    sosAlerts.unshift(alertPayload);
+    sosAlerts = sosAlerts.slice(0, 100);
+    renderSOSAlerts();
+}
+
+function renderSOSAlerts() {
+    const listEl = document.getElementById('sos-alerts-list');
+    if (!listEl) return;
+
+    if (!sosAlerts.length) {
+        listEl.innerHTML = '<div class="sos-empty">No SOS alerts yet.</div>';
+        return;
+    }
+
+    listEl.innerHTML = sosAlerts.map(alert => {
+        const timeLabel = alert.created_at ? new Date(alert.created_at).toLocaleString() : 'Unknown time';
+        const zoneLabel = alert.zone_name ? `${alert.zone_name} (${(alert.zone_type || 'unknown').toUpperCase()})` : 'No mapped zone';
+        const lat = Number(alert.lat || 0);
+        const lng = Number(alert.lng || 0);
+        return `
+            <div class="sos-item">
+                <div class="sos-item-title">${escapeHtml(alert.user_name || 'Unknown user')} triggered SOS</div>
+                <div class="sos-item-meta">
+                    Zone: ${escapeHtml(zoneLabel)}<br>
+                    Location: ${lat.toFixed(5)}, ${lng.toFixed(5)}<br>
+                    Time: ${escapeHtml(timeLabel)}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function showSOSPopup(alertPayload) {
+    const popupContainer = document.getElementById('sos-popup-container');
+    if (!popupContainer) return;
+
+    const popup = document.createElement('div');
+    popup.className = 'sos-popup';
+    popup.innerHTML = `
+        <strong>🚨 SOS Alert</strong><br>
+        ${escapeHtml(alertPayload.user_name || 'Unknown user')} needs help.<br>
+        ${escapeHtml(alertPayload.zone_name || 'Zone unavailable')}
+    `;
+
+    popupContainer.prepend(popup);
+    setTimeout(() => {
+        popup.remove();
+    }, 7000);
+}
+
+function markZoneEmergency(zoneId) {
+    if (!zoneId || !zoneMapLayers[zoneId]) {
+        return;
+    }
+
+    zoneMapLayers[zoneId].setStyle({
+        color: '#ff1e2d',
+        fillColor: '#ff1e2d',
+        fillOpacity: 0.45,
+        weight: 3
+    });
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
 function loadZones() {
@@ -276,7 +389,6 @@ style.textContent = `
 document.head.appendChild(style);
 
 // ============ ZONE MANAGEMENT ============
-let zoneMapLayers = [];
 let editingZoneId = null;
 let selectedZoneType = null;
 
@@ -475,12 +587,12 @@ function renderZonesTable(zones = []) {
 function redrawZoneCircles() {
     try {
         // Remove existing zone circles
-        zoneMapLayers.forEach(layer => {
+        Object.values(zoneMapLayers).forEach(layer => {
             if (map.hasLayer(layer)) {
                 map.removeLayer(layer);
             }
         });
-        zoneMapLayers = [];
+        zoneMapLayers = {};
         
         // Fetch and redraw zones
         fetch('/api/zones')
@@ -507,8 +619,8 @@ function redrawZoneCircles() {
                     })
                         .bindTooltip(`${zone.name} (${zone.type})`)
                         .addTo(map);
-                    
-                    zoneMapLayers.push(circle);
+
+                    zoneMapLayers[zone.id] = circle;
                 });
             })
             .catch(error => console.error('Error redrawing zones:', error));

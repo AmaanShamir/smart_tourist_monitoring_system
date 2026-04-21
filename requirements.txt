@@ -1,0 +1,5 @@
+Flask>=2.3
+Flask-SocketIO>=5.3
+bcrypt>=4.1
+numpy>=1.26
+scikit-learn>=1.4

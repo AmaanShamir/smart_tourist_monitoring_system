@@ -3,11 +3,15 @@ let userMarker;
 let watchId;
 let lastUpdate = 0;
 const UPDATE_INTERVAL = 5000; // 5 seconds
+let socket;
+let currentCoords = { lat: null, lng: null };
 
 // Initialize map on page load
 document.addEventListener('DOMContentLoaded', function() {
     try {
         initMap();
+        initSocket();
+        initSOSButton();
         startTracking();
         fetchAndDrawZones();
     } catch (error) {
@@ -66,6 +70,7 @@ function startTracking() {
 function handlePositionSuccess(position) {
     const lat = position.coords.latitude;
     const lng = position.coords.longitude;
+    currentCoords = { lat, lng };
     
     // Update user marker position
     userMarker.setLatLng([lat, lng]);
@@ -80,6 +85,72 @@ function handlePositionSuccess(position) {
         sendLocation(lat, lng);
         lastUpdate = now;
     }
+}
+
+function initSocket() {
+    try {
+        socket = io();
+        socket.on('connect_error', (error) => {
+            console.error('Socket connection error:', error.message);
+        });
+    } catch (error) {
+        console.error('Error initializing socket:', error);
+    }
+}
+
+function initSOSButton() {
+    const sosBtn = document.getElementById('sos-btn');
+    if (!sosBtn) return;
+
+    sosBtn.addEventListener('click', function() {
+        if (currentCoords.lat === null || currentCoords.lng === null) {
+            showSOSStatus('Unable to send SOS: location unavailable right now.');
+            return;
+        }
+
+        if (!socket || !socket.connected) {
+            showSOSStatus('Unable to send SOS: realtime connection is offline.');
+            return;
+        }
+
+        const payload = {
+            lat: currentCoords.lat,
+            lng: currentCoords.lng,
+            name: document.body.dataset.username || 'Tourist User'
+        };
+
+        socket.emit('sos_alert', payload, function(response) {
+            if (response && response.success) {
+                showSOSStatus('SOS alert sent to area admin. Calling 112...');
+                setTimeout(() => {
+                    window.location.href = 'tel:112';
+                }, 350);
+            } else {
+                const errorMessage = response && response.error ? response.error : 'Failed to send SOS alert.';
+                showSOSStatus(errorMessage);
+            }
+        });
+    });
+}
+
+function showSOSStatus(message) {
+    const alertEl = document.getElementById('sos-alert-status');
+    if (!alertEl) return;
+
+    const textEl = alertEl.querySelector('.alert-text');
+    if (textEl) {
+        textEl.textContent = message;
+    }
+
+    alertEl.classList.remove('hidden', 'fade-out');
+
+    setTimeout(() => {
+        alertEl.classList.add('fade-out');
+        setTimeout(() => {
+            alertEl.classList.add('hidden');
+            alertEl.classList.remove('fade-out');
+        }, 500);
+    }, 4500);
 }
 
 function handlePositionError(error) {
